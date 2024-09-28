@@ -38,13 +38,13 @@ def main():
     if args.apply_chat_template:
         args.prompt = apply_chat_template(args.prompt, tokenizer)
 
-    fancy_print("Prompt:", args.prompt, add_new_line=True)
+    fancy_print("Prompt:", args.prompt)
 
     # Generate output based on the selected method
     if args.method == "unconstrained":
         output_sequence, complete_sequence, logits = unconstrained_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
         
-        fancy_print("Output:", output_sequence, add_new_line=True)
+        fancy_print("Output:", output_sequence)
     else:
         # Placeholder for other sampling methods
         raise NotImplementedError("The specified sampling method is not implemented.")

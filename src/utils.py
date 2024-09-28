@@ -11,7 +11,7 @@ def apply_chat_template(prompt, tokenizer):
 
     return tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
 
-def fancy_print(*args, add_new_line=False):
+def fancy_print(*args, add_new_line=True):
     if add_new_line:
         print()
     for arg in args:
