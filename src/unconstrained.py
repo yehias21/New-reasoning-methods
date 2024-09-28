@@ -20,3 +20,23 @@ def unconstrained_sampling(model, tokenizer, device, prompt, max_new_tokens, tem
     output = tokenizer.decode(fin_prompt_new_seq[0], skip_special_tokens=True)
     
     return output
+
+class UnconstrainedSamplingLogitProcessor(LogitsProcessor):
+    def __init__(self, temperature=1.0):
+        self.temperature = temperature
+
+    def __call__(self, input_ids, scores):
+        scores = scores / (self.temperature + 1e-10)
+        return scores
+
+def unconstrained_sampling_with_logit_processor(model, tokenizer, device, prompt, max_new_tokens, temperature=1.0):
+    initial_prompt_seq = tokenizer(prompt, return_tensors="pt").to(device)
+    unconstrained_sampling_logit_processor = UnconstrainedSamplingLogitProcessor(temperature=temperature)
+    logits_processor = LogitsProcessorList([unconstrained_sampling_logit_processor])
+
+    fin_prompt_seq = model.generate(**initial_prompt_seq, logits_processor=logits_processor, max_new_tokens=max_new_tokens)
+
+    fin_prompt_new_seq = fin_prompt_seq[:, initial_prompt_seq.input_ids.shape[1]:]
+    output = tokenizer.decode(fin_prompt_new_seq[0], skip_special_tokens=True)
+    
+    return output
