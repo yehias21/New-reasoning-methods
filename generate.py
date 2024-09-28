@@ -5,7 +5,7 @@ import random
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.unconstrained import unconstrained_sampling
-from src.top_k import top_k_sampling, top_k_sampling_with_logit_processor
+from src.top_k import top_k_sampling
 from src.utils import *
 
 def main():
