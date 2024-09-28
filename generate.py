@@ -1,21 +1,26 @@
 import argparse
 import os
 import torch
+import random
+import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from src.unconstrained import unconstrained_sampling, unconstrained_sampling_with_logit_processor
+from src.unconstrained import unconstrained_sampling
+from src.top_k import top_k_sampling, top_k_sampling_with_logit_processor
 from src.utils import *
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, required=True, help="Input sequence for the model.")
     parser.add_argument("--apply-chat-template", type=str, action=argparse.BooleanOptionalAction, default=False, help="Whether to apply the chat template to the prompt.")
+    parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum number of new tokens to generate.")
     parser.add_argument("--hf-token", type=str, default=None, help="Hugging Face token.")
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["bfloat16", "float16", "float32"], help="Data type for the model.")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed.")
 
     args = parser.parse_args()
 
@@ -42,14 +47,20 @@ def main():
 
     fancy_print("Prompt:", args.prompt)
 
+    if args.seed is not None:
+        set_seed(args.seed)
+
     # Generate output based on the selected method
     if args.method == "unconstrained":
         output_sequence = unconstrained_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
         fancy_print("Output:", output_sequence)
-
-        output_sequence_from_logit_processor = unconstrained_sampling_with_logit_processor(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
-        fancy_print("Output from logit processor:", output_sequence_from_logit_processor)
     
+    elif args.method == "top_k":
+        if args.top_k is None:
+            parser.error("The --top_k argument is required when using the top-k sampling method.")
+        output_sequence = top_k_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_k=args.top_k, temperature=args.temperature)
+        fancy_print("Output:", output_sequence)
+
     elif args.method == "speculative":
         if args.draft_model is None:    
             parser.error("The --draft-model argument is required when using the speculative decoding method.")
