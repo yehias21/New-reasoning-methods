@@ -4,10 +4,10 @@ import torch
 import random
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from src.unconstrained import unconstrained_sampling
-from src.top_k import top_k_sampling
-from src.top_p import top_p_sampling
-from src.min_p import min_p_sampling
+from src.unconstrained import generate_with_unconstrained_sampling
+from src.top_k import generate_with_top_k_sampling
+from src.top_p import generate_with_top_p_sampling
+from src.min_p import generate_with_min_p_sampling
 from src.utils import *
 
 def main():
@@ -55,26 +55,34 @@ def main():
 
     # Generate output based on the selected method
     if args.method == "unconstrained":
-        output_sequence = unconstrained_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
-        fancy_print("Output:", output_sequence)
+        with torch.no_grad():
+            for _ in range(20):
+                output_sequence = generate_with_unconstrained_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
+                fancy_print("Output:", output_sequence)
     
     elif args.method == "top_k":
         if args.top_k is None:
             parser.error("The --top_k argument is required when using the top-k sampling method.")
-        output_sequence = top_k_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_k=args.top_k, temperature=args.temperature)
-        fancy_print("Output:", output_sequence)
+        with torch.no_grad():
+            for _ in range(20):
+                output_sequence = generate_with_top_k_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_k=args.top_k, temperature=args.temperature)
+                fancy_print("Output:", output_sequence)
 
     elif args.method == "top_p":
         if args.top_p is None:
             parser.error("The --top_p argument is required when using the top-p sampling method.")
-        output_sequence = top_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_p=args.top_p, temperature=args.temperature)
-        fancy_print("Output:", output_sequence)
+        with torch.no_grad():
+            for _ in range(20):
+                output_sequence = generate_with_top_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_p=args.top_p, temperature=args.temperature)
+                fancy_print("Output:", output_sequence)
 
     elif args.method == "min_p":
         if args.min_p is None:
             parser.error("The --min_p argument is required when using the min-p sampling method.")
-        output_sequence = min_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, min_p=args.min_p, temperature=args.temperature)
-        fancy_print("Output:", output_sequence)
+        with torch.no_grad():
+            for _ in range(20):
+                output_sequence = generate_with_min_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, min_p=args.min_p, temperature=args.temperature)
+                fancy_print("Output:", output_sequence)
 
     elif args.method == "speculative":
         if args.draft_model is None:    
