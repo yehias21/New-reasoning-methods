@@ -10,16 +10,17 @@ def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_toke
     probs = torch.softmax(logits, dim=-1)
     p_max = torch.max(probs, dim=-1).values
     p_scaled = min_p * p_max
-    min_p_mask_to_remove = probs < p_scaled
+    min_p_mask = probs < p_scaled
 
     sorted_indices = torch.argsort(logits, descending=True, dim=-1)
-    sorted_indices_to_remove = min_p_mask_to_remove.gather(-1, sorted_indices)
+    sorted_indices_to_remove = min_p_mask.gather(-1, sorted_indices)
     # Keep at least min_tokens_to_keep
     sorted_indices_to_remove[..., :min_tokens_to_keep] = False
 
     indices_to_remove = sorted_indices_to_remove.scatter(-1, sorted_indices, sorted_indices_to_remove)
 
-    min_p_probs = probs.masked_fill(indices_to_remove, 0)
+    min_p_logits = logits.masked_fill(indices_to_remove, float('-inf'))
+    min_p_probs = torch.softmax(min_p_logits, dim=-1)
 
     # Sampling
     sample_token = torch.multinomial(min_p_probs, num_samples=1)[0]
