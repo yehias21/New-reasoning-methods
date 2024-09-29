@@ -6,16 +6,18 @@ import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.unconstrained import unconstrained_sampling
 from src.top_k import top_k_sampling
+from src.top_p import top_p_sampling
 from src.utils import *
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, required=True, help="Input sequence for the model.")
     parser.add_argument("--apply-chat-template", type=str, action=argparse.BooleanOptionalAction, default=False, help="Whether to apply the chat template to the prompt.")
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
+    parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
     parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum number of new tokens to generate.")
     parser.add_argument("--hf-token", type=str, default=None, help="Hugging Face token.")
@@ -33,8 +35,6 @@ def main():
         args.dtype = torch.float16
     elif args.dtype == "float32":
         args.dtype = torch.float32
-
-    print("using dtype:", args.dtype)
 
     # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -59,6 +59,12 @@ def main():
         if args.top_k is None:
             parser.error("The --top_k argument is required when using the top-k sampling method.")
         output_sequence = top_k_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_k=args.top_k, temperature=args.temperature)
+        fancy_print("Output:", output_sequence)
+
+    elif args.method == "top_p":
+        if args.top_p is None:
+            parser.error("The --top_p argument is required when using the top-p sampling method.")
+        output_sequence = top_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_p=args.top_p, temperature=args.temperature)
         fancy_print("Output:", output_sequence)
 
     elif args.method == "speculative":
