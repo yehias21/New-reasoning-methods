@@ -29,9 +29,11 @@ def main():
 
     args = parser.parse_args()
 
+    # Load hf token from environment variable if not provided
     if args.hf_token is None:
         args.hf_token = os.environ["HF_TOKEN"]
 
+    # Make dtype torch compatible
     if args.dtype == "bfloat16":
         args.dtype = torch.bfloat16
     elif args.dtype == "float16":
@@ -42,6 +44,10 @@ def main():
     # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
+    # Set seed
+    if args.seed is not None:
+        set_seed(args.seed)
+        
     # Load model and tokenizer
     model, tokenizer = load_model_and_tokenizer(args.model, args.dtype, args.hf_token, device)
 
@@ -49,9 +55,6 @@ def main():
         args.prompt = apply_chat_template(args.prompt, tokenizer)
 
     fancy_print("Prompt:", args.prompt)
-
-    if args.seed is not None:
-        set_seed(args.seed)
 
     # Generate output based on the selected method
     if args.method == "unconstrained":
