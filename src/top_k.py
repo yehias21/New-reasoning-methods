@@ -16,7 +16,7 @@ def top_k_sampling_with_temperature(logits, top_k=50, temperature=1.0):
     sample_token = top_k_indices.gather(-1, sample_index)[0]
     return sample_token
 
-def top_k_sampling(model, tokenizer, device, prompt, max_new_tokens, top_k=10, temperature=1.0):
+def generate_with_top_k_sampling(model, tokenizer, device, prompt, max_new_tokens, top_k=10, temperature=1.0):
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
     
     # Initialize variables

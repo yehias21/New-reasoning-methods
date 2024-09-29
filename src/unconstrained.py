@@ -5,7 +5,7 @@ def unconstrained_sampling_with_temperature(logits, temperature=1.0):
     sample_token = torch.multinomial(probs, num_samples=1)[0]
     return sample_token
 
-def unconstrained_sampling(model, tokenizer, device, prompt, max_new_tokens, temperature=1.0):
+def generate_with_unconstrained_sampling(model, tokenizer, device, prompt, max_new_tokens, temperature=1.0):
     # Encode the initial prompt
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
 
