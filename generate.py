@@ -7,17 +7,20 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.unconstrained import unconstrained_sampling
 from src.top_k import top_k_sampling
 from src.top_p import top_p_sampling
+from src.min_p import min_p_sampling
 from src.utils import *
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, required=True, help="Input sequence for the model.")
     parser.add_argument("--apply-chat-template", type=str, action=argparse.BooleanOptionalAction, default=False, help="Whether to apply the chat template to the prompt.")
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
+    parser.add_argument("--min_p", type=float, default=None, help="Min-p sampling parameter.")
+    parser.add_argument("--min_tokens_to_keep", type=int, default=1, help="Minimum number of tokens to keep when using min-p sampling.")
     parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum number of new tokens to generate.")
     parser.add_argument("--hf-token", type=str, default=None, help="Hugging Face token.")
@@ -65,6 +68,12 @@ def main():
         if args.top_p is None:
             parser.error("The --top_p argument is required when using the top-p sampling method.")
         output_sequence = top_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_p=args.top_p, temperature=args.temperature)
+        fancy_print("Output:", output_sequence)
+
+    elif args.method == "min_p":
+        if args.min_p is None:
+            parser.error("The --min_p argument is required when using the min-p sampling method.")
+        output_sequence = min_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, min_p=args.min_p, temperature=args.temperature)
         fancy_print("Output:", output_sequence)
 
     elif args.method == "speculative":
