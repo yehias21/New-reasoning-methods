@@ -1,5 +1,4 @@
 import torch
-from transformers import LogitsProcessor, LogitsProcessorList
 
 def unconstrained_sampling_with_temperature(logits, temperature=1.0):
     probs = torch.softmax(logits / (temperature + 1e-10), dim=-1)

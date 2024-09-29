@@ -1,5 +1,4 @@
 import torch
-from transformers import LogitsProcessor, LogitsProcessorList
 
 def top_k_sampling_with_temperature(logits, top_k, temperature=1.0):
     if top_k == 0 or top_k > logits.shape[-1]:
