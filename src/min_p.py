@@ -14,7 +14,6 @@ def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_toke
 
     sorted_indices = torch.argsort(logits, descending=True, dim=-1)
     sorted_indices_to_remove = min_p_mask.gather(-1, sorted_indices)
-    # Keep at least min_tokens_to_keep
     sorted_indices_to_remove[..., :min_tokens_to_keep] = False
 
     indices_to_remove = sorted_indices_to_remove.scatter(-1, sorted_indices, sorted_indices_to_remove)
@@ -26,7 +25,7 @@ def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_toke
     sample_token = torch.multinomial(min_p_probs, num_samples=1)[0]
     return sample_token
 
-def min_p_sampling(model, tokenizer, device, prompt, max_new_tokens, min_p=0.9, temperature=1.0):
+def generate_with_min_p_sampling(model, tokenizer, device, prompt, max_new_tokens, min_p=0.9, temperature=1.0):
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
     
     # Initialize variables
