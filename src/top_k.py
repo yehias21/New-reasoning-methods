@@ -4,13 +4,14 @@ def top_k_sampling_with_temperature(logits, top_k, temperature=1.0):
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)
     
-    # Top-k filtering
+    # Top-k transformation
     if top_k == 0 or top_k > logits.shape[-1]:
         top_k = logits.shape[-1]
 
     top_k_logits, top_k_indices = torch.topk(logits, k=top_k, dim=-1)
     top_k_probs = torch.softmax(top_k_logits, dim=-1)
     
+    # Sampling
     sample_index = torch.multinomial(top_k_probs, num_samples=1)
     sample_token = top_k_indices.gather(-1, sample_index)[0]
     return sample_token

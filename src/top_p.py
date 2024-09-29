@@ -4,7 +4,7 @@ def top_p_sampling_with_temperature(logits, top_p, temperature=1.0):
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)
     
-    # Top-p filtering
+    # Top-p transformation
     sorted_logits, sorted_indices = torch.sort(logits, dim=-1, descending=True)
     sorted_probs = torch.softmax(sorted_logits, dim=-1)
     cumsum_sorted_probs = torch.cumsum(sorted_probs, dim=-1)
@@ -16,6 +16,7 @@ def top_p_sampling_with_temperature(logits, top_p, temperature=1.0):
     top_p_logits = sorted_logits.masked_fill(~top_p_mask, float('-inf'))
     top_p_probs = torch.softmax(top_p_logits, dim=-1)
     
+    # Sampling
     sample_index = torch.multinomial(top_p_probs, num_samples=1)
     sample_token = sorted_indices.gather(-1, sample_index)[0]
     return sample_token
