@@ -11,6 +11,7 @@ def load_model_and_tokenizer(model_name, dtype, hf_token, device):
     else:
         model.generation_config.pad_token_id = model.generation_config.eos_token_id
 
+    model.eval()
     return model, tokenizer
 
 def apply_chat_template(prompt, tokenizer):
