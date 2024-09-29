@@ -1,6 +1,6 @@
 import torch
 
-def top_k_sampling_with_temperature(logits, top_k, temperature=1.0):
+def top_k_sampling_with_temperature(logits, top_k=50, temperature=1.0):
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)
     
