@@ -164,3 +164,4 @@ cython_debug/
 **/__pycache__
 **/hf_token.py
 **/sample_prompt.txt
+**/generations.txt
