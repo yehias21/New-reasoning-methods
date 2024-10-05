@@ -1,18 +1,20 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TopKLogitsWarper
 
-def top_k_sampling_with_temperature(logits, top_k=50, temperature=1.0, return_logits=False):
+def top_k_sampling_with_temperature(logits, top_k=50, temperature=1.0, min_tokens_to_keep=1, return_logits=False):
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)
     
     if top_k == 0 or top_k > logits.shape[-1]:
         top_k = logits.shape[-1]
 
+    top_k = max(top_k, min_tokens_to_keep)
+
     # Top-k transformation
     top_k_logits, top_k_indices = torch.topk(logits, k=top_k, dim=-1)
     top_k_probs = torch.softmax(top_k_logits, dim=-1)
 
-    indices_to_remove = logits < top_k_logits[:, -1]
+    indices_to_remove = logits < top_k_logits[..., -1]
     masked_logits = logits.masked_fill(indices_to_remove, float('-inf'))
     masked_probs = torch.softmax(masked_logits, dim=-1)
 
