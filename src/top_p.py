@@ -5,7 +5,7 @@ def top_p_sampling_with_temperature(logits, top_p=0.9, temperature=1.0, min_toke
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)
     
-    # Top-p transformation - Off by one error in above implementation
+    # Top-p transformation - Off by one error in this implementation
     # For e.g. if probs are 0.1, 0.2, 0.3, 0.1, 0.15, 0.1, 0.05
     # If sorted in descending, indices are [2, 1, 4, 0, 3, 5, 6]
     # cumsum sorted probs = 0.3, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0
