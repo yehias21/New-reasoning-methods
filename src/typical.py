@@ -30,11 +30,11 @@ def typical_sampling_with_temperature(logits, typical_p_mass=0.9, temperature=1.
     typical_p_probs = torch.softmax(typical_p_logits, dim=-1)
     
     # Sampling
-    sample_index = torch.multinomial(typical_p_probs, num_samples=1)[0]
+    sample_token = torch.multinomial(typical_p_probs, num_samples=1)[0]
 
     if return_logits:
-        return sample_index, typical_p_logits
-    return sample_index
+        return sample_token, typical_p_logits
+    return sample_token
 
 def generate_with_typical_sampling(model, tokenizer, device, prompt, max_new_tokens, typical_p_mass=0.9, temperature=1.0):
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
