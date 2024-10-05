@@ -1,6 +1,7 @@
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, MinPLogitsWarper
 
-def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_tokens_to_keep=1):
+def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_tokens_to_keep=1, return_logits=False):
     assert 0 <= min_p <= 1, "min_p must be between 0 and 1"
 
     # Temperature scaling first
@@ -23,6 +24,9 @@ def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_toke
 
     # Sampling
     sample_token = torch.multinomial(min_p_probs, num_samples=1)[0]
+
+    if return_logits:
+        return sample_token, min_p_logits
     return sample_token
 
 def generate_with_min_p_sampling(model, tokenizer, device, prompt, max_new_tokens, min_p=0.9, temperature=1.0):
@@ -59,3 +63,26 @@ def generate_with_min_p_sampling(model, tokenizer, device, prompt, max_new_token
     output = tokenizer.decode(fin_prompt_new_seq[0], skip_special_tokens=True)
     
     return output
+
+def test_min_p_sampling():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = AutoModelForCausalLM.from_pretrained("gpt2").to(device)
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    prompt = "Once upon a time"
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(device)
+
+    logits = model(input_ids).logits[:, -1, :]
+    print(logits)
+
+    sample_token, min_p_logits = min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, return_logits=True)
+    print(min_p_logits)
+    print(min_p_logits[torch.where(min_p_logits != float('-inf'))])
+    logit_processor = MinPLogitsWarper(min_p=0.1, min_tokens_to_keep=1)
+    logits_processed = logit_processor(input_ids, logits)
+    print(logits_processed)
+    print(logits_processed[torch.where(logits_processed != float('-inf'))])
+
+    torch.testing.assert_close(min_p_logits, logits_processed)
+    
+if __name__ == "__main__":
+    test_min_p_sampling()
