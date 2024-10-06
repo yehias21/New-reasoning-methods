@@ -9,11 +9,12 @@ from src.top_k import generate_with_top_k_sampling
 from src.top_p import generate_with_top_p_sampling
 from src.min_p import generate_with_min_p_sampling
 from src.typical import generate_with_typical_sampling
+from src.beam_search import generate_with_beam_search
 from src.utils import *
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, required=True, help="Input sequence for the model.")
@@ -21,6 +22,7 @@ def main():
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
     parser.add_argument("--min_p", type=float, default=None, help="Min-p sampling parameter.")
+    parser.add_argument("--beam_width", type=int, default=None, help="Beam width for beam search.")
     parser.add_argument("--typical_p_mass", type=float, default=None, help="Typical-p mass parameter.")
     parser.add_argument("--min_tokens_to_keep", type=int, default=1, help="Minimum number of tokens to keep when sampling.")
     parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
@@ -96,6 +98,14 @@ def main():
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
                 output_sequence = generate_with_typical_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, typical_p_mass=args.typical_p_mass, temperature=args.temperature)
+                fancy_print("Output:", output_sequence)
+
+    elif args.method == "beam_search":
+        if args.beam_width is None:
+            parser.error("The --beam_width argument is required when using the beam search method.")
+        with torch.no_grad():
+            for _ in range(args.num_return_sequences):
+                output_sequence = generate_with_beam_search(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, beam_width=args.beam_width, temperature=args.temperature)
                 fancy_print("Output:", output_sequence)
 
     elif args.method == "speculative":
