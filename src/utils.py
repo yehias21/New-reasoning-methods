@@ -1,3 +1,5 @@
+import random
+import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
