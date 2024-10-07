@@ -15,6 +15,7 @@ def generate_with_sampling(model, tokenizer, device, prompt, max_new_tokens, sam
 
     seq_length = initial_prompt_seq.shape[-1]
     
+    # Initialize static KV Cache
     past_key_values = StaticCache(
         config=model.config,
         batch_size=1,
@@ -24,6 +25,8 @@ def generate_with_sampling(model, tokenizer, device, prompt, max_new_tokens, sam
     )
 
     cache_position = torch.arange(seq_length, device=device)
+
+    # Tensor to store generated ids
     generated_ids = torch.zeros(seq_length + max_new_tokens + 1, dtype=torch.int, device=device)
     generated_ids[cache_position] = initial_prompt_seq.to(torch.int)
 
@@ -31,6 +34,7 @@ def generate_with_sampling(model, tokenizer, device, prompt, max_new_tokens, sam
     prefill_output = model(input_ids=initial_prompt_seq, cache_position=cache_position, past_key_values=past_key_values, use_cache=True)
     logits = prefill_output.logits[:, -1, :]
 
+    # Sample the first token
     sample_token = sampling_function(logits, **sampling_params)
     generated_ids[seq_length] = sample_token.int()
 
@@ -41,10 +45,12 @@ def generate_with_sampling(model, tokenizer, device, prompt, max_new_tokens, sam
     # Subsequent steps: Pass only the last generated token with past_key_values
     while count_new_tokens < max_new_tokens:
         with sdpa_kernel(SDPBackend.MATH):
-            next_token_id = torch.tensor([[sample_token]], device=device, dtype=torch.long)
+            next_token_id = torch.tensor([[sample_token]], device=device, dtype=torch.int)
             sample_token = decode_one_token(model, next_token_id, cache_position, past_key_values, sampling_function, sampling_params)
             
         generated_ids[cache_position] = sample_token.int()
+
+        # Break if EOS is generated
         if sample_token.item() == tokenizer.eos_token_id:
             break
 
