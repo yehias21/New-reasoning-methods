@@ -1,16 +1,19 @@
 import argparse
 import os
 import torch
-import random
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from src.unconstrained import generate_with_unconstrained_sampling
+from src.unconstrained import unconstrained_sampling_with_temperature
 from src.top_k import generate_with_top_k_sampling
 from src.top_p import generate_with_top_p_sampling
 from src.min_p import generate_with_min_p_sampling
 from src.typical import generate_with_typical_sampling
 from src.beam_search import generate_with_beam_search
 from src.utils import *
+from src.generation_utils import *
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+torch.set_float32_matmul_precision('high')
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
@@ -63,9 +66,11 @@ def main():
 
     # Generate output based on the selected method
     if args.method == "unconstrained":
+        sampling_function = unconstrained_sampling_with_temperature
+        sampling_params = {"temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
-                output_sequence = generate_with_unconstrained_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
                 fancy_print("Output:", output_sequence)
     
     elif args.method == "top_k":
