@@ -1,3 +1,4 @@
+import math
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TypicalLogitsWarper
 
@@ -10,7 +11,7 @@ def typical_sampling_with_temperature(logits, typical_p_mass=0.9, temperature=1.
     # Typical sampling transformation
     log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
     probs = torch.exp(log_probs)
-    entropy = -torch.nansum(probs * log_probs, dim=-1, keepdim=True)
+    entropy = -torch.nansum(probs * log_probs, dim=-1, keepdim=True) / math.log(2)
 
     neg_log_probs = -log_probs
     entropy_neg_log_probs_dist = torch.abs(entropy - neg_log_probs)
