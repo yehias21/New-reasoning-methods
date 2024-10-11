@@ -51,13 +51,16 @@ def main():
     elif args.dtype == "float32":
         args.dtype = torch.float32
 
+    # Check if prompt is provided
     if args.prompt is None and args.prompt_file is None:
         parser.error("Either --prompt or --prompt_file must be provided.")
     
+    # Read prompt from file if not provided via --prompt
     if args.prompt is None and args.prompt_file is not None:
         with open(args.prompt_file, "r") as f:
             args.prompt = f.read()
 
+    # For Llama pre-trained only models
     if "Llama" in args.model and args.prompt and not args.apply_chat_template:
         args.prompt = "<|begin_of_text|>" + args.prompt
 
