@@ -1,6 +1,6 @@
 import time
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TemperatureLogitsWarper, StaticCache
+from transformers import AutoModelForCausalLM, AutoTokenizer, TemperatureLogitsWarper
 
 def unconstrained_sampling_with_temperature(logits, temperature=1.0, return_logits=False):
     logits = logits / (temperature + 1e-10)
