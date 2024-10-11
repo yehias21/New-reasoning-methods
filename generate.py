@@ -4,10 +4,10 @@ import torch
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.unconstrained import unconstrained_sampling_with_temperature
-from src.top_k import generate_with_top_k_sampling
-from src.top_p import generate_with_top_p_sampling
-from src.min_p import generate_with_min_p_sampling
-from src.typical import generate_with_typical_sampling
+from src.top_k import top_k_sampling_with_temperature
+from src.top_p import top_p_sampling_with_temperature
+from src.min_p import min_p_sampling_with_temperature
+from src.typical import typical_sampling_with_temperature
 from src.beam_search import generate_with_beam_search
 from src.utils import *
 from src.generation_utils import *
@@ -76,33 +76,41 @@ def main():
     elif args.method == "top_k":
         if args.top_k is None:
             parser.error("The --top_k argument is required when using the top-k sampling method.")
+        sampling_function = top_k_sampling_with_temperature
+        sampling_params = {"top_k": args.top_k, "temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
-                output_sequence = generate_with_top_k_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_k=args.top_k, temperature=args.temperature)
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
                 fancy_print("Output:", output_sequence)
 
     elif args.method == "top_p":
         if args.top_p is None:
             parser.error("The --top_p argument is required when using the top-p sampling method.")
+        sampling_function = top_p_sampling_with_temperature
+        sampling_params = {"top_p": args.top_p, "temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
-                output_sequence = generate_with_top_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, top_p=args.top_p, temperature=args.temperature)
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
                 fancy_print("Output:", output_sequence)
 
     elif args.method == "min_p":
         if args.min_p is None:
             parser.error("The --min_p argument is required when using the min-p sampling method.")
+        sampling_function = min_p_sampling_with_temperature
+        sampling_params = {"min_p": args.min_p, "temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
-                output_sequence = generate_with_min_p_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, min_p=args.min_p, temperature=args.temperature)
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
                 fancy_print("Output:", output_sequence)
 
     elif args.method == "typical":
         if args.typical_p_mass is None:
             parser.error("The --typical_p_mass argument is required when using the typical sampling method.")
+        sampling_function = typical_sampling_with_temperature
+        sampling_params = {"typical_p_mass": args.typical_p_mass, "temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
-                output_sequence = generate_with_typical_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, typical_p_mass=args.typical_p_mass, temperature=args.temperature)
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
                 fancy_print("Output:", output_sequence)
 
     elif args.method == "beam_search":
