@@ -9,6 +9,7 @@ from src.top_p import top_p_sampling_with_temperature
 from src.min_p import min_p_sampling_with_temperature
 from src.typical import typical_sampling_with_temperature
 from src.beam_search import generate_with_beam_search
+from src.cot_decoding import generate_with_cot_decoding
 from src.utils import *
 from src.generation_utils import *
 
@@ -17,10 +18,11 @@ torch.set_float32_matmul_precision('high')
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "cot_decoding", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
-    parser.add_argument("--prompt", type=str, required=True, help="Input sequence for the model.")
+    parser.add_argument("--prompt", type=str, default=None, help="Input sequence for the model.")
+    parser.add_argument("--prompt_file", type=str, default=None, help="Path to the file containing the prompt.")
     parser.add_argument("--apply-chat-template", type=str, action=argparse.BooleanOptionalAction, default=False, help="Whether to apply the chat template to the prompt.")
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
@@ -48,6 +50,16 @@ def main():
         args.dtype = torch.float16
     elif args.dtype == "float32":
         args.dtype = torch.float32
+
+    if args.prompt is None and args.prompt_file is None:
+        parser.error("Either --prompt or --prompt_file must be provided.")
+    
+    if args.prompt is None and args.prompt_file is not None:
+        with open(args.prompt_file, "r") as f:
+            args.prompt = f.read()
+
+    if "Llama" in args.model and args.prompt and not args.apply_chat_template:
+        args.prompt = "<|begin_of_text|>" + args.prompt
 
     # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -120,6 +132,17 @@ def main():
             for _ in range(args.num_return_sequences):
                 output_sequence = generate_with_beam_search(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, beam_width=args.beam_width, temperature=args.temperature)
                 fancy_print("Output:", output_sequence)
+
+    elif args.method == "cot_decoding":
+        if args.num_return_sequences > 1:
+            parser.error("The cot decoding method only supports single-sequence generation with varying top index for the first token.")
+        with torch.no_grad():
+            for intial_token_k in range(1, 11):
+                output_sequence = generate_with_cot_decoding(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, intial_token_k=intial_token_k)
+                if intial_token_k == 1:
+                    fancy_print(f"Greedy path\nOutput with intial_token_k={intial_token_k}:", output_sequence)
+                else:
+                    fancy_print(f"Output with intial_token_k={intial_token_k}:", output_sequence)
 
     elif args.method == "speculative":
         if args.draft_model is None:    
