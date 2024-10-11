@@ -91,4 +91,4 @@ def test_beam_search():
     print(generated_text)
 
 if __name__ == "__main__":
-    test_beam_search_sampling()
+    test_beam_search()
