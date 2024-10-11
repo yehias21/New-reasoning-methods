@@ -30,12 +30,9 @@ def generate_with_sampling(model, tokenizer, device, prompt, max_new_tokens, sam
     generated_ids = torch.zeros(seq_length + max_new_tokens + 1, dtype=torch.int, device=device)
     generated_ids[cache_position] = initial_prompt_seq.to(torch.int)
 
-    # First step: Process the entire prompt
-    prefill_output = model(input_ids=initial_prompt_seq, cache_position=cache_position, past_key_values=past_key_values, use_cache=True)
-    logits = prefill_output.logits[:, -1, :]
+    # First step: Process the entire prompt and sample the first token
+    sample_token = decode_one_token(model, initial_prompt_seq, cache_position, past_key_values, sampling_function, sampling_params)
 
-    # Sample the first token
-    sample_token = sampling_function(logits, **sampling_params)
     generated_ids[seq_length] = sample_token.int()
 
     # Initialize variables
