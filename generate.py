@@ -138,7 +138,7 @@ def main():
 
     elif args.method == "cot_decoding":
         if args.num_return_sequences > 1:
-            parser.error("The cot decoding method only supports single-sequence generation with varying top index for the first token.")
+            parser.error("The CoT decoding method only supports single-sequence generation with varying top index for the first token.")
         with torch.no_grad():
             for intial_token_k in range(1, 11):
                 output_sequence = generate_with_cot_decoding(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, intial_token_k=intial_token_k)
