@@ -10,15 +10,17 @@ from src.min_p import min_p_sampling_with_temperature
 from src.typical import typical_sampling_with_temperature
 from src.beam_search import generate_with_beam_search
 from src.cot_decoding import generate_with_cot_decoding
+from src.constrained_json_decoding import constrained_json_sampling
 from src.utils import *
 from src.generation_utils import *
+import json
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 torch.set_float32_matmul_precision('high')
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "cot_decoding", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "cot_decoding", "constrained_json", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, default=None, help="Input sequence for the model.")
@@ -29,8 +31,12 @@ def main():
     parser.add_argument("--min_p", type=float, default=None, help="Min-p sampling parameter.")
     parser.add_argument("--beam_width", type=int, default=None, help="Beam width for beam search.")
     parser.add_argument("--typical_p_mass", type=float, default=None, help="Typical-p mass parameter.")
+    parser.add_argument("--json_schema", type=str, help="Path to the JSON schema file for constrained JSON sampling.")
+    parser.add_argument("--max_array_length", type=int, default=10, help="Maximum length of arrays in constrained JSON sampling.")
+    parser.add_argument("--max_number_tokens", type=int, default=6, help="Maximum number of tokens for numbers in constrained JSON sampling.")
+    parser.add_argument("--max_string_token_length", type=int, default=10, help="Maximum number of tokens for strings in constrained JSON sampling.")
     parser.add_argument("--min_tokens_to_keep", type=int, default=1, help="Minimum number of tokens to keep when sampling.")
-    parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
+    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum number of new tokens to generate.")
     parser.add_argument("--num_return_sequences", type=int, default=1, help="Number of sequences to return.")
     parser.add_argument("--hf-token", type=str, default=None, help="Hugging Face token.")
@@ -146,6 +152,27 @@ def main():
                     fancy_print(f"Greedy path\nOutput with intial_token_k={intial_token_k}:", output_sequence)
                 else:
                     fancy_print(f"Output with intial_token_k={intial_token_k}:", output_sequence)
+    
+    elif args.method == "constrained_json":
+        if args.json_schema is None:
+            parser.error("The --json_schema argument is required when using the constrained JSON sampling method.")
+        if args.temperature == 0:
+            parser.error("The temperature should be greater than 0 for constrained JSON sampling.")
+        with open(args.json_schema, 'r') as f:
+            json_schema = json.load(f)
+        with torch.no_grad():
+            for _ in range(args.num_return_sequences):
+                output_sequence = constrained_json_sampling(
+                    model,
+                    tokenizer,
+                    args.prompt,
+                    json_schema,
+                    max_array_length=args.max_array_length,
+                    max_number_tokens=args.max_number_tokens,
+                    temperature=args.temperature,
+                    max_string_token_length=args.max_string_token_length
+                )
+                fancy_print("Output:", json.dumps(output_sequence, indent=2))
 
     elif args.method == "speculative":
         if args.draft_model is None:    
