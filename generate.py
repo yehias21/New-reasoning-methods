@@ -182,10 +182,12 @@ def main():
         else:
             with torch.no_grad():
                 for _ in range(args.num_return_sequences):
+                    print(f"Using model: {args.model}")
+                    print(f"Using draft model: {args.draft_model}")
                     print(f"Using lookahead: {args.lookahead}")
                     print("Assuming draft model and target model share the same tokenizer...")
                     draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model, torch_dtype=args.dtype, trust_remote_code=True, token=args.hf_token).to(device)
-                    output_sequence, acceptance_rate = speculative_sampling(model, draft_model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, lookahead=args.lookahead, temperature=args.temperature, debug=True)
+                    output_sequence, acceptance_rate = speculative_sampling(model, draft_model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, lookahead=args.lookahead, temperature=args.temperature)
                     fancy_print("Output:", output_sequence)
                     fancy_print("Acceptance rate:", acceptance_rate)
     
