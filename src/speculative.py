@@ -28,7 +28,7 @@ def sample_from_draft_model(model, initial_prompt_seq, new_tokens, temperature=1
     out_logits = torch.stack(out_logits, dim=1)
     return fin_prompt_seq, out_logits
 
-def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, target_len, lookahead=4, temperature=1.0, debug=True):
+def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, max_new_tokens, lookahead=4, temperature=1.0, debug=False):
     '''
     Implementation of Algorithm 2 of the paper - Accelerating Large Language Model Decoding 
     with Speculative Sampling (https://arxiv.org/abs/2302.01318)
@@ -36,10 +36,18 @@ def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, t
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
     assert initial_prompt_seq.shape[0] == 1, 'Batch size should be 1'
 
+    draft_accepted_tokens = 0
+
     n = initial_prompt_seq.shape[-1]
     fin_prompt_seq = initial_prompt_seq.detach().clone()
+    target_len = n + max_new_tokens
+
+    end_flag = 0
 
     while n < target_len:
+        if end_flag == 1:
+            break
+
         n_orig = n
         N = fin_prompt_seq.shape[-1]
         draft_outputs, draft_logits = sample_from_draft_model(draft_model, fin_prompt_seq, new_tokens=lookahead, temperature=temperature)
@@ -66,6 +74,11 @@ def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, t
             if (uniform_distribution < torch.min(ones_tensor, ratio)).any():
                 fin_prompt_seq = torch.concat([fin_prompt_seq, draft_outputs[:, N+t].unsqueeze(dim=-1)], dim=-1)
                 n += 1
+                draft_accepted_tokens += 1
+
+                if fin_prompt_seq[..., -1] == tokenizer.eos_token_id:
+                    end_flag = 1
+                    break
 
             ## Rejection
             else:
@@ -78,9 +91,13 @@ def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, t
                 token_id = torch.multinomial(new_dist, num_samples=1)[0]
                 fin_prompt_seq = torch.concat([fin_prompt_seq, token_id[None,...]], dim=-1)
                 accepted_flag = 0
+
+                if fin_prompt_seq[..., -1] == tokenizer.eos_token_id:
+                    end_flag = 1
+                
                 break
 
-        if accepted_flag == 1:
+        if accepted_flag == 1 and end_flag == 0:
             if debug:
                 print(f"Accepted continuations: {tokenizer.decode(fin_prompt_seq[0,n_orig:], skip_special_tokens=True)}")
 
@@ -88,10 +105,17 @@ def speculative_sampling(target_model, draft_model, tokenizer, device, prompt, t
             sample_token = unconstrained_sampling_with_temperature(last_target_logits, temperature=temperature)
             fin_prompt_seq = torch.concat([fin_prompt_seq, sample_token[None,...]], dim=-1)
 
+            if fin_prompt_seq[..., -1] == tokenizer.eos_token_id:
+                end_flag = 1
+                break
+
         n += 1
 
-    output = tokenizer.decode(fin_prompt_seq[0], skip_special_tokens=True)
-    return output
+    total_generated_tokens = fin_prompt_seq.shape[-1] - initial_prompt_seq.shape[-1]
+    acceptance_rate = round(draft_accepted_tokens / total_generated_tokens, 2)
+    generated_ids = fin_prompt_seq[0, initial_prompt_seq.shape[-1]:]
+    output = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    return output, acceptance_rate
 
 def test_speculative_sampling():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,8 +124,9 @@ def test_speculative_sampling():
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
     prompt = "Once upon a time"
     target_len = 10
-    output = speculative_sampling(target_model, draft_model, tokenizer, device, prompt, target_len, lookahead=4, temperature=1.0, debug=True)
-    print(output)
+    output, acceptance_rate = speculative_sampling(target_model, draft_model, tokenizer, device, prompt, target_len, lookahead=4, temperature=1.0, debug=True)
+    print("Output:", output)
+    print(f"Acceptance rate: {acceptance_rate}")
 
 if __name__ == "__main__":
     test_speculative_sampling()
