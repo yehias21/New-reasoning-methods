@@ -11,6 +11,7 @@ from src.typical import typical_sampling_with_temperature
 from src.beam_search import generate_with_beam_search
 from src.cot_decoding import generate_with_cot_decoding
 from src.constrained_json_decoding import constrained_json_sampling
+from src.speculative import speculative_sampling
 from src.utils import *
 from src.generation_utils import *
 import json
@@ -26,6 +27,7 @@ def main():
     parser.add_argument("--prompt", type=str, default=None, help="Input sequence for the model.")
     parser.add_argument("--prompt_file", type=str, default=None, help="Path to the file containing the prompt.")
     parser.add_argument("--apply-chat-template", type=str, action=argparse.BooleanOptionalAction, default=False, help="Whether to apply the chat template to the prompt.")
+    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
     parser.add_argument("--min_p", type=float, default=None, help="Min-p sampling parameter.")
@@ -35,8 +37,8 @@ def main():
     parser.add_argument("--max_array_length", type=int, default=10, help="Maximum length of arrays in constrained JSON sampling.")
     parser.add_argument("--max_number_tokens", type=int, default=6, help="Maximum number of tokens for numbers in constrained JSON sampling.")
     parser.add_argument("--max_string_token_length", type=int, default=10, help="Maximum number of tokens for strings in constrained JSON sampling.")
+    parser.add_argument("--lookahead", type=int, default=4, help="Lookahead for speculative decoding.")
     parser.add_argument("--min_tokens_to_keep", type=int, default=1, help="Minimum number of tokens to keep when sampling.")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature. Use temperature=0 for greedy decoding.")
     parser.add_argument("--max_new_tokens", type=int, default=500, help="Maximum number of new tokens to generate.")
     parser.add_argument("--num_return_sequences", type=int, default=1, help="Number of sequences to return.")
     parser.add_argument("--hf-token", type=str, default=None, help="Hugging Face token.")
@@ -178,10 +180,14 @@ def main():
         if args.draft_model is None:    
             parser.error("The --draft-model argument is required when using the speculative decoding method.")
         else:
-            print("Assuming draft model and target model share the same tokenizer...")
-            draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model, torch_dtype=args.dtype, trust_remote_code=True, token=args.hf_token).to(device)
-            output_sequence = speculative_sampling(model, draft_model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, temperature=args.temperature)
-            fancy_print("Output:", output_sequence)
+            with torch.no_grad():
+                for _ in range(args.num_return_sequences):
+                    print(f"Using lookahead: {args.lookahead}")
+                    print("Assuming draft model and target model share the same tokenizer...")
+                    draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model, torch_dtype=args.dtype, trust_remote_code=True, token=args.hf_token).to(device)
+                    output_sequence, acceptance_rate = speculative_sampling(model, draft_model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, lookahead=args.lookahead, temperature=args.temperature, debug=True)
+                    fancy_print("Output:", output_sequence)
+                    fancy_print("Acceptance rate:", acceptance_rate)
     
     else:
         raise NotImplementedError("The specified sampling method is not implemented.")
