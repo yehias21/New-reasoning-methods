@@ -2,6 +2,8 @@ import torch
 from transformers import StaticCache
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
+# Based on https://arxiv.org/abs/2402.10200 - Chain-of-Thought Reasoning Without Prompting
+
 def decode_one_token(model, cur_token, cache_position, past_key_values, k=1):
     output = model(input_ids=cur_token, cache_position=cache_position, past_key_values=past_key_values, use_cache=True)
     logits = output.logits[:, -1, :]

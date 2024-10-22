@@ -2,6 +2,8 @@ import math
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TypicalLogitsWarper
 
+# Based on https://arxiv.org/abs/2202.00666 - Locally Typical Sampling
+
 def typical_sampling_with_temperature(logits, typical_p_mass=0.9, temperature=1.0, min_tokens_to_keep=1, div_by_log2=True, return_logits=False):
     assert 0 <= typical_p_mass <= 1, "typical_p_mass must be between 0 and 1"
 

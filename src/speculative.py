@@ -1,6 +1,8 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+# Based on https://arxiv.org/abs/2302.01318 - Accelerating Large Language Model Decoding with Speculative Sampling
+
 def get_distribution(logits, temperature):
     probs = torch.softmax(logits / (temperature + 1e-10), dim=-1)
     return probs

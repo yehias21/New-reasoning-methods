@@ -1,6 +1,8 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, MinPLogitsWarper
 
+# Based on https://arxiv.org/abs/2407.01082 - Turning Up the Heat: Min-p Sampling for Creative and Coherent LLM Outputs
+
 def min_p_sampling_with_temperature(logits, min_p=0.1, temperature=1.0, min_tokens_to_keep=1, return_logits=False):
     assert 0 <= min_p <= 1, "min_p must be between 0 and 1"
 
