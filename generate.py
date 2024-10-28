@@ -8,6 +8,8 @@ from src.top_k import top_k_sampling_with_temperature
 from src.top_p import top_p_sampling_with_temperature
 from src.min_p import min_p_sampling_with_temperature
 from src.typical import typical_sampling_with_temperature
+from src.epsilon import epsilon_sampling_with_temperature
+from src.eta import eta_sampling_with_temperature
 from src.beam_search import generate_with_beam_search
 from src.cot_decoding import generate_with_cot_decoding
 from src.constrained_json_decoding import constrained_json_sampling
@@ -21,7 +23,7 @@ torch.set_float32_matmul_precision('high')
 
 def main():
     parser = argparse.ArgumentParser(description="Generate text using a language model.")
-    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "beam_search", "cot_decoding", "constrained_json", "speculative"], default="unconstrained", help="Sampling method to use.")
+    parser.add_argument("--method", type=str, choices=["unconstrained", "top_k", "top_p", "min_p", "typical", "eta", "epsilon", "beam_search", "cot_decoding", "constrained_json", "speculative"], default="unconstrained", help="Sampling method to use.")
     parser.add_argument("--model", type=str, required=True, help="Path/name of the model.")
     parser.add_argument("--draft-model", type=str, default=None, help="Path/name of the draft model (required for speculative decoding).")
     parser.add_argument("--prompt", type=str, default=None, help="Input sequence for the model.")
@@ -31,6 +33,7 @@ def main():
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter.")
     parser.add_argument("--top_p", type=float, default=None, help="Top-p sampling parameter.")
     parser.add_argument("--min_p", type=float, default=None, help="Min-p sampling parameter.")
+    parser.add_argument("--epsilon", type=float, default=None, help="Epsilon sampling parameter (for eta and epsilon sampling).")
     parser.add_argument("--beam_width", type=int, default=None, help="Beam width for beam search.")
     parser.add_argument("--typical_p_mass", type=float, default=None, help="Typical-p mass parameter.")
     parser.add_argument("--json_schema", type=str, help="Path to the JSON schema file for constrained JSON sampling.")
@@ -131,6 +134,26 @@ def main():
             parser.error("The --typical_p_mass argument is required when using the typical sampling method.")
         sampling_function = typical_sampling_with_temperature
         sampling_params = {"typical_p_mass": args.typical_p_mass, "temperature": args.temperature}
+        with torch.no_grad():
+            for _ in range(args.num_return_sequences):
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
+                fancy_print("Output:", output_sequence)
+
+    elif args.method == "epsilon":
+        if args.epsilon is None:
+            parser.error("The --epsilon argument is required when using the epsilon sampling method.")
+        sampling_function = epsilon_sampling_with_temperature
+        sampling_params = {"epsilon": args.epsilon, "temperature": args.temperature}
+        with torch.no_grad():
+            for _ in range(args.num_return_sequences):
+                output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
+                fancy_print("Output:", output_sequence)
+
+    elif args.method == "eta":
+        if args.epsilon is None:
+            parser.error("The --epsilon argument is required when using the eta sampling method.")
+        sampling_function = eta_sampling_with_temperature
+        sampling_params = {"epsilon": args.epsilon, "temperature": args.temperature}
         with torch.no_grad():
             for _ in range(args.num_return_sequences):
                 output_sequence = generate_with_sampling(model, tokenizer, device, args.prompt, max_new_tokens=args.max_new_tokens, sampling_function=sampling_function, sampling_params=sampling_params)
