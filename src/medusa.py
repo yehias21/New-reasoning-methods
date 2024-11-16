@@ -8,9 +8,10 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
-from conversation_format import get_conv_template, Conversation
-
-TOPK = 10 # topk for sparse tree (10 is a placeholder and it is sufficient)
+from conversation_format import get_conv_template
+from medusa_utils import generate_medusa_buffers, initialize_past_key_values, initialize_medusa, generate_candidates, format_input, reset_medusa_mode, tree_decoding, evaluate_posterior, update_inference_inputs
+from modeling_llama_kv import LlamaForCausalLM
+from typing import Any, Generator
 
 class ResBlock(nn.Module):
     """
@@ -104,11 +105,12 @@ class MedusaModel(nn.Module):
         return logits_per_head
 
 class MedusaLMHead(nn.Module):
-    def __init__(self, base_model: PreTrainedModel, medusa_heads: MedusaModel, medusa_config: MedusaConfig) -> None:
+    def __init__(self, base_model: PreTrainedModel, tokenizer: AutoTokenizer, medusa_heads: MedusaModel, medusa_config: MedusaConfig) -> None:
         super().__init__()
         self.base_model = base_model
         self.medusa_heads = medusa_heads
         self.medusa_config = medusa_config
+        self.tokenizer = tokenizer
 
         self.medusa_heads.to(self.base_model.dtype).to(self.base_model.device)
 
@@ -141,136 +143,118 @@ class MedusaLMHead(nn.Module):
             medusa_logits = self.medusa_heads(hidden_states)
             logits = torch.stack([base_model_logits] + medusa_logits, dim=0)
             return logits, base_model_logits
-    
-def format_input(conv: Conversation, prompt: str) -> str:
-    # Add user message to conversation
-    conv.append_message(conv.roles[0], prompt)
-    conv.append_message(conv.roles[1], None)
-    
-    # Get the full prompt with conversation history
-    full_prompt = conv.get_prompt()
-    return full_prompt
 
-def pad_path(path, length, pad_value=-2):
-    """
-    Pad the given path list with a specific value up to a specified length.
-    
-    Parameters:
-    - path (list): The original list that needs padding.
-    - length (int): The desired length of the padded list.
-    - pad_value (optional, default=-2): The value to use for padding.
-    
-    Returns:
-    - list: A new list based on the original path but padded to the desired length.
-    
-    Example:
-    >>> pad_path([1,2,3], 5)
-    [1, 2, 3, -2, -2]
-    
-    Note:
-    If the given path is already longer than the specified length, 
-    then no padding occurs, and the original path is returned.
-    """
-    
-    # Calculate the number of padding values needed by subtracting the length
-    # of the path from the desired length.
-    # Append the padding values to the original path and return the new list.
-    return path + [pad_value] * (length - len(path))
+    def generate(
+            self, 
+            input_ids: torch.LongTensor, 
+            attention_mask: Optional[torch.Tensor] = None,
+            temperature: float = 1.0,
+            max_steps: int = 128,
+            medusa_choices: List[Tuple[int, ...]] = None,
+            fast: bool = True,
+            epsilon: float = 0.09,
+            top_p: float = 0.8,
+            sampling: str = 'nucleus'
+    ) -> Generator[dict, Any, None]:
+        assert input_ids.shape[0] == 1, "Only support batch size 1 for now!!"
+        # Avoid modifying the input_ids in-place
+        input_ids = input_ids.clone()
 
-def generate_medusa_buffers(medusa_choices, device="cuda"):
-    """
-    Generate buffers for the Medusa structure based on the provided choices.
-    
-    Parameters:
-    - medusa_choices (list): A nested list representing tree in the Medusa structure.
-    - device (str): Device to which the tensors should be moved. Default is "cuda".
-    
-    Returns:
-    - dict: A dictionary containing buffers related to the Medusa structure.
-    """
-
-    # Sort the medusa_choices based on their lengths and then their values
-    sorted_medusa_choices = sorted(medusa_choices, key=lambda x: (len(x), x))
-    medusa_len = len(sorted_medusa_choices) + 1
-
-    # Initialize depth_counts to keep track of how many choices have a particular depth
-    depth_counts = []
-    prev_depth = 0
-    for path in sorted_medusa_choices:
-        depth = len(path)
-        if depth != prev_depth:
-            depth_counts.append(0)
-        depth_counts[depth - 1] += 1
-        prev_depth = depth
-    
-    # Create the attention mask for Medusa
-    medusa_attn_mask = torch.eye(medusa_len, medusa_len)
-    medusa_attn_mask[:, 0] = 1
-    start = 0
-    for i in range(len(depth_counts)):
-        for j in range(depth_counts[i]):
-            cur_medusa_choice = sorted_medusa_choices[start + j]
-            # retrieve ancestor position
-            if len(cur_medusa_choice) == 1:
-                continue
-            ancestor_idx = []
-            for c in range(len(cur_medusa_choice) - 1):
-                ancestor_idx.append(sorted_medusa_choices.index(cur_medusa_choice[:c+1]) + 1)
-            medusa_attn_mask[j + start + 1, ancestor_idx] = 1
-        start += depth_counts[i]
-
-    # Generate tree indices for the Medusa structure
-    medusa_tree_indices = torch.zeros(medusa_len, dtype=torch.long)
-    medusa_tree_indices[0] = 0
-    start = 0
-    for i in range(len(depth_counts)):
-        for j in range(depth_counts[i]):
-            cur_medusa_choice = sorted_medusa_choices[start + j]
-            medusa_tree_indices[start + j + 1] = cur_medusa_choice[-1] + TOPK * i + 1
-        start += depth_counts[i]
-
-    # Generate position IDs for the Medusa structure
-    medusa_position_ids = torch.zeros(medusa_len, dtype=torch.long)
-    start = 0
-    for i in range(len(depth_counts)):
-        medusa_position_ids[start + 1: start + depth_counts[i] + 1] = i + 1
-        start += depth_counts[i]
-
-    # Generate retrieval indices for Medusa structure verification
-    retrieve_indices_nest = []
-    retrieve_paths = []
-    for i in range(len(sorted_medusa_choices)):
-        cur_medusa_choice = sorted_medusa_choices[-i-1]
-        retrieve_indice = []
-        if cur_medusa_choice in retrieve_paths:
-            continue
+        if medusa_choices is None:
+            medusa_choices = MEDUSA_CHOICES
+        
+        if hasattr(self, "medusa_choices") and self.medusa_choices == medusa_choices:
+            # Load the cached medusa buffer
+            medusa_buffers = self.medusa_buffers
         else:
-            for c in range(len(cur_medusa_choice)):
-                retrieve_indice.append(sorted_medusa_choices.index(cur_medusa_choice[:c+1]))
-                retrieve_paths.append(cur_medusa_choice[:c+1])
-        retrieve_indices_nest.append(retrieve_indice)
-    max_length = max([len(x) for x in retrieve_indices_nest])
-    retrieve_indices = [pad_path(path, max_length) for path in retrieve_indices_nest]
-    retrieve_indices = torch.tensor(retrieve_indices, dtype=torch.long)
-    retrieve_indices = retrieve_indices + 1
-    retrieve_indices = torch.cat([torch.zeros((retrieve_indices.shape[0], 1), dtype=torch.long), retrieve_indices], dim=1)
+            # Initialize the medusa buffer
+            medusa_buffers = generate_medusa_buffers(medusa_choices, device=self.base_model.device)
+        
+        self.medusa_choices = medusa_choices
+        self.medusa_buffers = medusa_buffers
 
-    # Aggregate the generated buffers into a dictionary
-    medusa_buffers = {
-        "medusa_attn_mask": medusa_attn_mask.unsqueeze(0).unsqueeze(0),
-        "tree_indices": medusa_tree_indices,
-        "medusa_position_ids": medusa_position_ids,
-        "retrieve_indices": retrieve_indices,
-        }
-    
-    # Move the tensors in the dictionary to the specified device
-    medusa_buffers = {
-        k: v.clone().to(device)
-        if isinstance(v, torch.Tensor)
-        else torch.tensor(v,  device=device)
-        for k, v in medusa_buffers.items()
-    }
-    return medusa_buffers
+        if hasattr(self, "past_key_values"):
+            past_key_values = self.past_key_values
+            past_key_values_data = self.past_key_values_data
+            current_length_data = self.current_length_data
+            # Reset the past key and value states
+            current_length_data.zero_()
+        else:
+            past_key_values, past_key_values_data, current_length_data = initialize_past_key_values(self.base_model)
+            self.past_key_values = past_key_values
+            self.past_key_values_data = past_key_values_data
+            self.current_length_data = current_length_data
+
+        input_len = input_ids.shape[1]
+
+        reset_medusa_mode(self)
+        # print("Before sending", past_key_values)
+        medusa_logits, logits = initialize_medusa(input_ids, self, medusa_buffers["medusa_attn_mask"], past_key_values)
+
+        new_token = 0
+        last_round_token = 0
+
+        # print("Medusa logits")
+        # print(medusa_logits.shape)
+        # print("Logits")
+        # print(logits.shape)
+        
+        for idx in range(max_steps):
+            candidates, tree_candidates = generate_candidates(
+                medusa_logits,
+                logits,
+                medusa_buffers["tree_indices"],
+                medusa_buffers["retrieve_indices"],
+                temperature=temperature,
+                epsilon=epsilon,
+                top_p=top_p,
+                sampling=sampling,
+                fast=fast,
+            )
+            
+            # print(tree_candidates)
+
+            # Use tree attention to verify the candidates and get predictions
+            medusa_logits, logits = tree_decoding(
+                self,
+                tree_candidates,
+                past_key_values,
+                medusa_buffers["medusa_position_ids"],
+                input_ids,
+                medusa_buffers["retrieve_indices"],
+            )
+
+            # print(logits.shape)
+            # Evaluate the posterior of the candidates to select the accepted candidate prefix
+            best_candidate, accept_length = evaluate_posterior(
+                logits, candidates, temperature, epsilon**0.5, epsilon, top_p=top_p, sampling=sampling, fast=fast
+            )
+
+            # Update the input_ids and logits
+            input_ids, logits, medusa_logits, new_token = update_inference_inputs(
+                input_ids,
+                candidates,
+                best_candidate,
+                accept_length,
+                medusa_buffers["retrieve_indices"],
+                logits,
+                medusa_logits,
+                new_token,
+                past_key_values_data,
+                current_length_data,
+            )
+
+            yield {
+                "text": self.tokenizer.decode(
+                    input_ids[0, input_len:],
+                    skip_special_tokens=True,
+                    spaces_between_special_tokens=False,
+                    clean_up_tokenization_spaces=True,
+                )
+            }
+
+            if self.tokenizer.eos_token_id in input_ids[0, input_len:]:
+                break
 
 if __name__ == "__main__":
     # Get Vicuna conversation template
@@ -284,11 +268,12 @@ if __name__ == "__main__":
 
     medusa_buffers = generate_medusa_buffers(vicuna_7b_medusa_choices, device=device)
     print(medusa_buffers)
-    sys.exit()
+    # sys.exit()
 
     # Load models
     base_model_name = "lmsys/vicuna-7b-v1.3"
     base_model = AutoModelForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16).to(device)
+    base_model_medusa = LlamaForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16).to(device)
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     model_name = "abhigoyal/vllm-medusa-vicuna-7b-v1.3"
     config = MedusaConfig.from_pretrained(model_name)
@@ -300,14 +285,14 @@ if __name__ == "__main__":
     print(medusa_heads)
 
     # Prompt
-    # inp = "What is the capital of 1) France and 2) India?"
-    inp = "What is the capital of France?"
+    inp = "What is the capital of 1) France and 2) India?"
+    # inp = "What is the capital of France?"
     inp_prompt = format_input(conv, inp)
     inp_ids = tokenizer([inp_prompt], return_tensors="pt").input_ids.to(device)
 
-    with torch.inference_mode():
-        medusa_lm_model = MedusaLMHead(base_model=base_model, medusa_heads=medusa_heads, medusa_config=config).to(device)
-        
+    medusa_lm_model = MedusaLMHead(base_model=base_model_medusa, tokenizer=tokenizer, medusa_heads=medusa_heads, medusa_config=config).to(device)
+    
+    with torch.inference_mode():        
         out_logits, base_model_logits = medusa_lm_model(input_ids=inp_ids)
         print(inp_prompt)
         print(out_logits)
@@ -320,3 +305,14 @@ if __name__ == "__main__":
         # Normal decoding
         out = base_model.generate(inp_ids, do_sample=False, max_new_tokens=100)
         print(tokenizer.batch_decode(out, skip_special_tokens=True))
+
+
+    # medusa_lm_model.generate(inp_ids, max_steps=10, medusa_choices=vicuna_7b_medusa_choices)
+    last_output = ""
+    for output in medusa_lm_model.generate(inp_ids, max_steps=512, medusa_choices=vicuna_7b_medusa_choices):
+        current_output = output["text"]
+        # Only print the new part
+        new_text = current_output[len(last_output):]
+        print(new_text, end="", flush=True)
+        last_output = current_output
+    print()
