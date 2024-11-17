@@ -10,13 +10,13 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           PretrainedConfig, PreTrainedModel)
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from conversation_format import get_conv_template
-from medusa_utils import (evaluate_posterior, format_input,
+from src.conversation_format import get_conv_template
+from src.medusa_utils import (evaluate_posterior, format_input,
                           generate_candidates, generate_medusa_buffers,
                           initialize_medusa, initialize_past_key_values,
                           reset_medusa_mode, tree_decoding,
                           update_inference_inputs)
-from modeling_llama_kv import LlamaForCausalLM
+from src.modeling_llama_kv import LlamaForCausalLM
 
 
 class ResBlock(nn.Module):
@@ -155,19 +155,16 @@ class MedusaLMHead(nn.Module):
             input_ids: torch.LongTensor, 
             attention_mask: Optional[torch.Tensor] = None,
             temperature: float = 1.0,
-            max_steps: int = 128,
+            max_new_tokens: int = 128,
             medusa_choices: List[Tuple[int, ...]] = None,
             fast: bool = True,
             epsilon: float = 0.09,
             top_p: float = 0.8,
-            sampling: str = 'nucleus'
-    ) -> Generator[dict, Any, None]:
+            sampling: str = 'eta'
+    ) -> str:
         assert input_ids.shape[0] == 1, "Only support batch size 1 for now!!"
         # Avoid modifying the input_ids in-place
         input_ids = input_ids.clone()
-
-        if medusa_choices is None:
-            medusa_choices = MEDUSA_CHOICES
         
         if hasattr(self, "medusa_choices") and self.medusa_choices == medusa_choices:
             # Load the cached medusa buffer
@@ -204,8 +201,8 @@ class MedusaLMHead(nn.Module):
         # print(medusa_logits.shape)
         # print("Logits")
         # print(logits.shape)
-        
-        for idx in range(max_steps):
+
+        for idx in range(max_new_tokens):
             candidates, tree_candidates = generate_candidates(
                 medusa_logits,
                 logits,
@@ -250,17 +247,48 @@ class MedusaLMHead(nn.Module):
                 current_length_data,
             )
 
-            yield {
-                "text": self.tokenizer.decode(
-                    input_ids[0, input_len:],
-                    skip_special_tokens=True,
-                    spaces_between_special_tokens=False,
-                    clean_up_tokenization_spaces=True,
-                )
-            }
+            # yield {
+            #     "text": self.tokenizer.decode(
+            #         input_ids[0, input_len:],
+            #         skip_special_tokens=True,
+            #         spaces_between_special_tokens=False,
+            #         clean_up_tokenization_spaces=True,
+            #     )
+            # }
 
             if self.tokenizer.eos_token_id in input_ids[0, input_len:]:
                 break
+        
+        output = self.tokenizer.decode(
+                input_ids[0, input_len:],
+                skip_special_tokens=True,
+                spaces_between_special_tokens=False,
+                clean_up_tokenization_spaces=True,
+            )
+        return output
+
+def generate_with_medusa(base_model_name, medusa_model_heads_name, device, prompt, max_new_tokens, medusa_choices, dtype=torch.bfloat16):
+    base_model = LlamaForCausalLM.from_pretrained(base_model_name, torch_dtype=dtype).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    config = MedusaConfig.from_pretrained(medusa_model_heads_name)
+    print(config)
+    medusa_heads = MedusaModel(config=config)
+    model_weights = hf_hub_download(repo_id=medusa_model_heads_name, filename="model.safetensors")
+    state_dict = load_file(model_weights, device=device)
+    medusa_heads.load_state_dict(state_dict)
+    medusa_lm_model = MedusaLMHead(base_model=base_model, tokenizer=tokenizer, medusa_heads=medusa_heads, medusa_config=config).to(device)
+
+    conv = get_conv_template("vicuna_v1.1")
+    inp_prompt = format_input(conv, prompt)
+    inp_ids = tokenizer([inp_prompt], return_tensors="pt").input_ids.to(device)
+
+    vicuna_7b_medusa_choices = [(0,), (0, 0), (1,), (0, 1), (0, 0, 0), (1, 0), (2,), (0, 2), (0, 0, 1), (0, 3), (3,), (0, 1, 0), (2, 0), (4,), (0, 0, 2), (0, 4), (1, 1), (1, 0, 0), (0, 0, 0, 0), (5,), (0, 0, 3), (0, 5), (0, 2, 0), (3, 0), (0, 1, 1), (0, 6), (6,), (0, 7), (0, 0, 4), (4, 0), (1, 2), (0, 8), (7,), (0, 3, 0), (0, 0, 0, 1), (0, 0, 5), (2, 1), (0, 0, 6), (1, 0, 1), (0, 0, 1, 0), (2, 0, 0), (5, 0), (0, 9), (0, 1, 2), (8,), (0, 4, 0), (0, 2, 1), (1, 3), (0, 0, 7), (0, 0, 0, 2), (0, 0, 8), (1, 1, 0), (0, 1, 0, 0), (6, 0), (9,), (0, 1, 3), (0, 0, 0, 3), (1, 0, 2), (0, 5, 0), (3, 1), (0, 0, 2, 0), (7, 0), (1, 4)]
+
+    if medusa_choices is None:
+        medusa_choices = vicuna_7b_medusa_choices
+
+    output = medusa_lm_model.generate(inp_ids, max_new_tokens=max_new_tokens, medusa_choices=medusa_choices)
+    return output
 
 if __name__ == "__main__":
     # Get Vicuna conversation template
@@ -291,8 +319,10 @@ if __name__ == "__main__":
     print(medusa_heads)
 
     # Prompt
-    inp = "What is the capital of 1) France and 2) India?"
+    # inp = "What is the capital of 1) France and 2) India?"
     # inp = "What is the capital of France?"
+    inp = "Tell me a joke about the man who walks into a bar"
+
     inp_prompt = format_input(conv, inp)
     inp_ids = tokenizer([inp_prompt], return_tensors="pt").input_ids.to(device)
 
@@ -313,12 +343,14 @@ if __name__ == "__main__":
         print(tokenizer.batch_decode(out, skip_special_tokens=True))
 
 
-    # medusa_lm_model.generate(inp_ids, max_steps=10, medusa_choices=vicuna_7b_medusa_choices)
-    last_output = ""
-    for output in medusa_lm_model.generate(inp_ids, max_steps=512, medusa_choices=vicuna_7b_medusa_choices):
-        current_output = output["text"]
-        # Only print the new part
-        new_text = current_output[len(last_output):]
-        print(new_text, end="", flush=True)
-        last_output = current_output
-    print()
+    # # medusa_lm_model.generate(inp_ids, max_steps=10, medusa_choices=vicuna_7b_medusa_choices)
+    # last_output = ""
+    # for output in medusa_lm_model.generate(inp_ids, max_steps=512, medusa_choices=vicuna_7b_medusa_choices):
+    #     current_output = output["text"]
+    #     # Only print the new part
+    #     new_text = current_output[len(last_output):]
+    #     print(new_text, end="", flush=True)
+    #     last_output = current_output
+    # print()
+    output = medusa_lm_model.generate(inp_ids, max_new_tokens=512, medusa_choices=vicuna_7b_medusa_choices)
+    print(output)
