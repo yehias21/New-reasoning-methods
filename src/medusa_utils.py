@@ -3,9 +3,9 @@ import torch.nn.functional as F
 from sklearn import tree
 from transformers import PreTrainedModel
 
-from conversation_format import Conversation
-from eta import eta_sampling_with_temperature
-from top_p import top_p_sampling_with_temperature
+from src.conversation_format import Conversation
+from src.eta import eta_sampling_with_temperature
+from src.top_p import top_p_sampling_with_temperature
 
 TOPK = 10 # topk for sparse tree (10 is a placeholder and it is sufficient)
 
