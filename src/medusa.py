@@ -1,17 +1,23 @@
-from typing import Iterable, List, Optional, Tuple, Union
 import os
 import sys
+from typing import Any, Generator, Iterable, List, Optional, Tuple, Union
+
 import torch
-from torch import nn
-from transformers import PretrainedConfig, PreTrainedModel
-from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
+from torch import nn
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          PretrainedConfig, PreTrainedModel)
+from transformers.modeling_outputs import CausalLMOutputWithPast
+
 from conversation_format import get_conv_template
-from medusa_utils import generate_medusa_buffers, initialize_past_key_values, initialize_medusa, generate_candidates, format_input, reset_medusa_mode, tree_decoding, evaluate_posterior, update_inference_inputs
+from medusa_utils import (evaluate_posterior, format_input,
+                          generate_candidates, generate_medusa_buffers,
+                          initialize_medusa, initialize_past_key_values,
+                          reset_medusa_mode, tree_decoding,
+                          update_inference_inputs)
 from modeling_llama_kv import LlamaForCausalLM
-from typing import Any, Generator
+
 
 class ResBlock(nn.Module):
     """

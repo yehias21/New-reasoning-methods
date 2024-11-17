@@ -1,10 +1,11 @@
-from sklearn import tree
 import torch
-from conversation_format import Conversation
+import torch.nn.functional as F
+from sklearn import tree
 from transformers import PreTrainedModel
+
+from conversation_format import Conversation
 from eta import eta_sampling_with_temperature
 from top_p import top_p_sampling_with_temperature
-import torch.nn.functional as F
 
 TOPK = 10 # topk for sparse tree (10 is a placeholder and it is sufficient)
 
