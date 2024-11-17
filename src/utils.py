@@ -1,7 +1,9 @@
 import random
+
 import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
 
 def load_model_and_tokenizer(model_name, dtype, hf_token, device):
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype, trust_remote_code=True, token=hf_token).to(device)

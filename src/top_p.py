@@ -1,6 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TopPLogitsWarper
 
+
 def top_p_sampling_with_temperature(logits, top_p=0.9, temperature=1.0, min_tokens_to_keep=1, return_logits=False):
     # Temperature scaling first
     logits = logits / (temperature + 1e-10)

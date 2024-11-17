@@ -1,6 +1,7 @@
 import torch
-from transformers import StaticCache
 from torch.nn.attention import SDPBackend, sdpa_kernel
+from transformers import StaticCache
+
 
 def decode_one_token(model, cur_token, cache_position, past_key_values, sampling_function, sampling_params):
     output = model(input_ids=cur_token, cache_position=cache_position, past_key_values=past_key_values, use_cache=True)

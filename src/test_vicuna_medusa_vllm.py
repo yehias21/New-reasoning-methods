@@ -1,7 +1,8 @@
-from vllm import LLM, SamplingParams
-from conversation_format import get_conv_template
-
 import argparse
+
+from vllm import LLM, SamplingParams
+
+from conversation_format import get_conv_template
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Run Vicuna model with optional Medusa mode')

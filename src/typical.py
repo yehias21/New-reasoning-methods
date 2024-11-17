@@ -1,6 +1,8 @@
 import math
+
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TypicalLogitsWarper
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          TypicalLogitsWarper)
 
 # Based on https://arxiv.org/abs/2202.00666 - Locally Typical Sampling
 

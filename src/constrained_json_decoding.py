@@ -1,9 +1,12 @@
 # Taken from https://github.com/1rgs/jsonformer
 
-import torch
-from transformers import PreTrainedTokenizer, LogitsWarper, StoppingCriteria, PreTrainedModel
 import json
-from typing import Dict, Any
+from typing import Any, Dict
+
+import torch
+from transformers import (LogitsWarper, PreTrainedModel, PreTrainedTokenizer,
+                          StoppingCriteria)
+
 
 class StringStoppingCriteria(StoppingCriteria):
     def __init__(self, tokenizer: PreTrainedTokenizer, prompt_length: int):
@@ -214,8 +217,8 @@ def constrained_json_sampling(model, tokenizer, prompt, json_schema, max_array_l
     return constrained_json_decoding()
 
 def test_constrained_json_sampling():
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct").to(device)

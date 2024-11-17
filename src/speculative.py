@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Based on https://arxiv.org/abs/2302.01318 - Accelerating Large Language Model Decoding with Speculative Sampling
 

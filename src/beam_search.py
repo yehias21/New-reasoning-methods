@@ -1,6 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
 def generate_with_beam_search(model, tokenizer, device, prompt, max_new_tokens, beam_width=5, temperature=1.0):
     initial_prompt_seq = tokenizer.encode(prompt, return_tensors="pt").to(device)
 

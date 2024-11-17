@@ -1,6 +1,6 @@
 import torch
-from transformers import StaticCache
 from torch.nn.attention import SDPBackend, sdpa_kernel
+from transformers import StaticCache
 
 # Based on https://arxiv.org/abs/2402.10200 - Chain-of-Thought Reasoning Without Prompting
 

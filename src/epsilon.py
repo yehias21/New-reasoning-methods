@@ -1,5 +1,6 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, EpsilonLogitsWarper
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          EpsilonLogitsWarper)
 
 # Based on https://arxiv.org/abs/2210.15191 - Truncation Sampling as Language Model Desmoothing
 # Best values of epsilon for epsilon sampling are between 3e-4 and 9e-4 (Table 5 in Appendix A.2)
