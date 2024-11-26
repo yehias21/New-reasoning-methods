@@ -392,7 +392,7 @@ def tree_decoding(
     return medusa_logits, logits
 
 def evaluate_posterior(
-    logits, candidates, temperature, posterior_threshold=0.3, posterior_alpha = 0.09, top_p=0.8, sampling = 'typical', fast = True
+    logits, candidates, temperature, posterior_threshold=0.3, posterior_alpha = 0.09, top_p=0.8, sampling = 'eta', fast = True
 ):
     """
     Evaluate the posterior probabilities of the candidates based on the provided logits and choose the best candidate.
@@ -459,7 +459,7 @@ def evaluate_posterior(
                 best_candidate = best_candidates[torch.argmax(likelihood)]
             return best_candidate, accept_length
         # Calculate posterior probabilities and thresholds for candidate selection
-        posterior_mask = get_typical_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha)
+        posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha)
         candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
         # Choose the best candidate based on the evaluated posterior probabilities
         accept_length = candidates_accept_length.max()
@@ -541,7 +541,7 @@ def get_nucleus_posterior_mask(logits, candidates, temperature, top_p):
 
     return posterior_mask
 
-def get_typical_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha):
+def get_eta_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha):
     """
     Args:
         logits (torch.Tensor): A tensor of logits from a language model output.
