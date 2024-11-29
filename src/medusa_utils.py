@@ -304,8 +304,7 @@ def generate_candidates(medusa_logits, logits, tree_indices, retrieve_indices, t
     - tree_indices (list or torch.Tensor): Indices representing a tree structure, used for mapping candidates.
     - retrieve_indices (list or torch.Tensor): Indices for extracting specific candidate tokens.
     - temperature (float, optional): Controls the diversity of the sampling process. Defaults to 0.
-    - posterior_threshold (float, optional): Threshold for typical sampling. Defaults to 0.3.
-    - posterior_alpha (float, optional): Scaling factor for the entropy-based threshold in typical sampling. Defaults to 0.09.
+    - epsilon (float, optional): Scaling factor for the entropy-based threshold in eta sampling. Defaults to 0.09.
     - top_p (float, optional): Cumulative probability threshold for nucleus sampling. Defaults to 0.8.
     - sampling (str, optional): Defines the sampling strategy ('typical' or 'nucleus'). Defaults to 'typical'.
     - fast (bool, optional): If True, enables faster, deterministic decoding for typical sampling. Defaults to False.
@@ -392,7 +391,7 @@ def tree_decoding(
     return medusa_logits, logits
 
 def evaluate_posterior(
-    logits, candidates, temperature, posterior_threshold=0.3, posterior_alpha = 0.09, top_p=0.8, sampling = 'eta', fast = True
+    logits, candidates, temperature, alpha = 0.3, epsilon = 0.09, top_p=0.8, sampling = 'eta', fast = True
 ):
     """
     Evaluate the posterior probabilities of the candidates based on the provided logits and choose the best candidate.
@@ -404,8 +403,7 @@ def evaluate_posterior(
     - logits (torch.Tensor): Predicted logits of shape (batch_size, sequence_length, vocab_size).
     - candidates (torch.Tensor): Candidate token sequences.
     - temperature (float): Softmax temperature for probability scaling. A value of 0 indicates greedy decoding.
-    - posterior_threshold (float): Threshold for posterior probability.
-    - posterior_alpha (float): Scaling factor for the threshold.
+    - epsilon (float): Scaling factor for the threshold.
     - top_p (float, optional): Cumulative probability threshold for nucleus sampling. Defaults to 0.8.
     - sampling (str, optional): Defines the sampling strategy ('typical' or 'nucleus'). Defaults to 'typical'.
     - fast (bool, optional): If True, enables faster, deterministic decoding for typical sampling. Defaults to False.
@@ -439,8 +437,8 @@ def evaluate_posterior(
                 posterior_prob * torch.log(posterior_prob + 1e-5), dim=-1
             )  # torch.sum(torch.log(*)) is faster than torch.prod
             threshold = torch.minimum(
-                torch.ones_like(posterior_entropy) * posterior_threshold,
-                torch.exp(-posterior_entropy) * posterior_alpha,
+                torch.ones_like(posterior_entropy) * alpha , 
+                torch.exp(-posterior_entropy) * epsilon,
             )
             posterior_mask = candidates_prob > threshold
             candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
@@ -459,7 +457,7 @@ def evaluate_posterior(
                 best_candidate = best_candidates[torch.argmax(likelihood)]
             return best_candidate, accept_length
         # Calculate posterior probabilities and thresholds for candidate selection
-        posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha)
+        posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, alpha,  epsilon)
         candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
         # Choose the best candidate based on the evaluated posterior probabilities
         accept_length = candidates_accept_length.max()
@@ -541,14 +539,14 @@ def get_nucleus_posterior_mask(logits, candidates, temperature, top_p):
 
     return posterior_mask
 
-def get_eta_posterior_mask(logits, candidates, temperature, posterior_threshold, posterior_alpha):
+def get_eta_posterior_mask(logits, candidates, temperature, alpha, epsilon):
     """
     Args:
         logits (torch.Tensor): A tensor of logits from a language model output.
         candidates (torch.Tensor): A tensor of candidate tokens to compare against sampled tokens.
         temperature (float): A parameter to scale the logits, controlling randomness in sampling.
-        posterior_threshold (float): The minimum threshold for probabilities to be considered in sampling.
-        posterior_alpha (float): A scaling factor applied to the entropy-based adaptive threshold.
+        alpha   (float): The minimum threshold for probabilities to be considered in sampling.
+        epsilon (float): A scaling factor applied to the entropy-based adaptive threshold.
 
     Returns:
         torch.Tensor: A posterior mask indicating which candidate tokens match the sampled tokens.
@@ -561,8 +559,8 @@ def get_eta_posterior_mask(logits, candidates, temperature, posterior_threshold,
             probs * torch.log(probs + 1e-5), dim=-1
         )
     threshold = torch.minimum(
-            torch.ones_like(entropy) * posterior_threshold,
-            torch.exp(-entropy) * posterior_alpha,
+            torch.ones_like(entropy) * alpha , 
+            torch.exp(-entropy) * epsilon,
         )
     indices_to_remove = probs < threshold.unsqueeze(-1)
     logits[indices_to_remove] = float('-inf')
