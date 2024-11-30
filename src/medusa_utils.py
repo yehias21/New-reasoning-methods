@@ -389,9 +389,7 @@ def tree_decoding(
     # print(medusa_logits.shape)
     return medusa_logits, logits
 
-def evaluate_posterior(
-    logits, candidates, temperature, alpha = 0.3, epsilon = 0.09, top_p=0.8, sampling = 'eta', fast = True
-):
+def evaluate_posterior(logits, candidates, temperature, epsilon = 0.09, top_p = 0.8, sampling = 'eta'):
     """
     Evaluate the posterior probabilities of the candidates based on the provided logits and choose the best candidate.
 
@@ -425,33 +423,9 @@ def evaluate_posterior(
         return best_candidate, accept_length
         
     if sampling == 'eta':
-        # if fast:
-        #     posterior_prob = torch.softmax(logits[:, :-1] / temperature, dim=-1)
-        #     candidates_prob = torch.gather(posterior_prob, dim=-1, index=candidates[:, 1:].unsqueeze(-1)).squeeze(-1)
-        #     posterior_entropy = -torch.sum(posterior_prob * torch.log(posterior_prob + 1e-5), dim=-1)  # torch.sum(torch.log(*)) is faster than torch.prod
-            
-        #     threshold = torch.minimum(
-        #         torch.ones_like(posterior_entropy) * alpha , 
-        #         torch.exp(-posterior_entropy) * epsilon,
-        #     )
-        #     posterior_mask = candidates_prob > threshold
-        #     candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
-
-        #     # Choose the best candidate based on the evaluated posterior probabilities
-        #     accept_length = candidates_accept_length.max()
-        #     if accept_length == 0:
-        #         # If no candidates are accepted, just choose the first one
-        #         best_candidate = torch.tensor(0, dtype=torch.long, device=candidates.device)
-        #     else:
-        #         best_candidates = torch.where(candidates_accept_length == accept_length)[0]
-        #         # Accept the best one according to likelihood
-        #         likelihood = torch.sum(
-        #             torch.log(candidates_prob[best_candidates, :accept_length]), dim=-1
-        #         )
-        #         best_candidate = best_candidates[torch.argmax(likelihood)]
-        #     return best_candidate, accept_length
+        alpha = epsilon**0.5
         # Calculate posterior probabilities and thresholds for candidate selection
-        posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, alpha,  epsilon)
+        posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, alpha, epsilon)
         candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
         # Choose the best candidate based on the evaluated posterior probabilities
         accept_length = candidates_accept_length.max()
