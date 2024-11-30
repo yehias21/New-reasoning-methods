@@ -336,15 +336,5 @@ if __name__ == "__main__":
         out = base_model.generate(inp_ids, do_sample=False, max_new_tokens=100)
         print(tokenizer.batch_decode(out, skip_special_tokens=True))
 
-
-    # # medusa_lm_model.generate(inp_ids, max_steps=10, medusa_choices=vicuna_7b_medusa_choices)
-    # last_output = ""
-    # for output in medusa_lm_model.generate(inp_ids, max_steps=512, medusa_choices=vicuna_7b_medusa_choices):
-    #     current_output = output["text"]
-    #     # Only print the new part
-    #     new_text = current_output[len(last_output):]
-    #     print(new_text, end="", flush=True)
-    #     last_output = current_output
-    # print()
     output = medusa_lm_model.generate(inp_ids, max_new_tokens=512, medusa_choices=vicuna_7b_medusa_choices)
     print(output)
