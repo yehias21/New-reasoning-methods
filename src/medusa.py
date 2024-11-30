@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Generator, Iterable, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from huggingface_hub import hf_hub_download

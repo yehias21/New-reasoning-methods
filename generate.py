@@ -2,7 +2,6 @@ import argparse
 import os
 import ast
 import torch
-import numpy as np
 from transformers import AutoModelForCausalLM
 from src.unconstrained import unconstrained_sampling_with_temperature
 from src.top_k import top_k_sampling_with_temperature
@@ -245,7 +244,7 @@ def main():
                         sampling = "eta"
                         epsilon = 0.09
                         top_p = None
-                        
+
                     output_sequence = generate_with_medusa(args.model, args.medusa_model_heads, device, args.prompt, max_new_tokens=args.max_new_tokens, medusa_choices=args.medusa_choices, dtype=args.dtype, temperature=args.temperature, sampling=sampling, epsilon=epsilon, top_p=top_p)
                     fancy_print("Output:", output_sequence)
     

@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from sklearn import tree
 from transformers import PreTrainedModel
 
 from src.conversation_format import Conversation
