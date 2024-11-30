@@ -3,7 +3,7 @@ import os
 import ast
 import torch
 import numpy as np
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM
 from src.unconstrained import unconstrained_sampling_with_temperature
 from src.top_k import top_k_sampling_with_temperature
 from src.top_p import top_p_sampling_with_temperature
@@ -232,7 +232,7 @@ def main():
                     print(f"Using draft model: {args.medusa_model_heads}")
                     if args.medusa_choices is not None:
                         print(f"Using medusa choices: {args.medusa_choices}")
-                    output_sequence = generate_with_medusa(args.model, args.medusa_model_heads, device, args.prompt, max_new_tokens=args.max_new_tokens, medusa_choices=args.medusa_choices, dtype=args.dtype)
+                    output_sequence = generate_with_medusa(args.model, args.medusa_model_heads, device, args.prompt, max_new_tokens=args.max_new_tokens, medusa_choices=args.medusa_choices, dtype=args.dtype, temperature=args.temperature)
                     fancy_print("Output:", output_sequence)
     
     else:
