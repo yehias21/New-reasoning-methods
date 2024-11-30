@@ -294,7 +294,7 @@ def initialize_medusa(input_ids, model, medusa_attn_mask, past_key_values):
     model.base_model.model.medusa_mask = medusa_attn_mask
     return logits, base_model_logits
 
-def generate_candidates(medusa_logits, logits, tree_indices, retrieve_indices, temperature = 0, epsilon = 0.09, top_p=0.8, sampling = 'eta', fast = False):
+def generate_candidates(medusa_logits, logits, tree_indices, retrieve_indices, temperature = 0, epsilon = 0.09, top_p=0.8, sampling = 'eta'):
     """
     Generate candidates based on provided logits and indices.
     
@@ -307,7 +307,6 @@ def generate_candidates(medusa_logits, logits, tree_indices, retrieve_indices, t
     - epsilon (float, optional): Scaling factor for the entropy-based threshold in eta sampling. Defaults to 0.09.
     - top_p (float, optional): Cumulative probability threshold for nucleus sampling. Defaults to 0.8.
     - sampling (str, optional): Defines the sampling strategy ('typical' or 'nucleus'). Defaults to 'typical'.
-    - fast (bool, optional): If True, enables faster, deterministic decoding for typical sampling. Defaults to False.
 
     Returns:
     - tuple (torch.Tensor, torch.Tensor): A tuple containing two sets of candidates:
@@ -315,7 +314,7 @@ def generate_candidates(medusa_logits, logits, tree_indices, retrieve_indices, t
         2. Tree candidates mapped from the Cartesian candidates using tree indices.
     """
     # Greedy decoding: Select the most probable candidate from the original logits.
-    if temperature == 0 or fast:
+    if temperature == 0:
         candidates_logit = torch.argmax(logits[-1]).unsqueeze(0)
     else:
         if sampling == 'eta':
@@ -406,7 +405,7 @@ def evaluate_posterior(
     - epsilon (float): Scaling factor for the threshold.
     - top_p (float, optional): Cumulative probability threshold for nucleus sampling. Defaults to 0.8.
     - sampling (str, optional): Defines the sampling strategy ('typical' or 'nucleus'). Defaults to 'typical'.
-    - fast (bool, optional): If True, enables faster, deterministic decoding for typical sampling. Defaults to False.
+
     Returns:
     - best_candidate (torch.Tensor): Index of the chosen best candidate.
     - accept_length (int): Length of the accepted candidate sequence.
@@ -414,9 +413,7 @@ def evaluate_posterior(
     # Greedy decoding based on temperature value
     if temperature == 0:
         # Find the tokens that match the maximum logits for each position in the sequence
-        posterior_mask = (
-            candidates[:, 1:] == torch.argmax(logits[:, :-1], dim=-1)
-        ).int()
+        posterior_mask = (candidates[:, 1:] == torch.argmax(logits[:, :-1], dim=-1)).int()
         candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
         accept_length = candidates_accept_length.max()
         # Choose the best candidate
@@ -428,34 +425,31 @@ def evaluate_posterior(
         return best_candidate, accept_length
         
     if sampling == 'eta':
-        if fast:
-            posterior_prob = torch.softmax(logits[:, :-1] / temperature, dim=-1)
-            candidates_prob = torch.gather(
-                posterior_prob, dim=-1, index=candidates[:, 1:].unsqueeze(-1)
-            ).squeeze(-1)
-            posterior_entropy = -torch.sum(
-                posterior_prob * torch.log(posterior_prob + 1e-5), dim=-1
-            )  # torch.sum(torch.log(*)) is faster than torch.prod
-            threshold = torch.minimum(
-                torch.ones_like(posterior_entropy) * alpha , 
-                torch.exp(-posterior_entropy) * epsilon,
-            )
-            posterior_mask = candidates_prob > threshold
-            candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
+        # if fast:
+        #     posterior_prob = torch.softmax(logits[:, :-1] / temperature, dim=-1)
+        #     candidates_prob = torch.gather(posterior_prob, dim=-1, index=candidates[:, 1:].unsqueeze(-1)).squeeze(-1)
+        #     posterior_entropy = -torch.sum(posterior_prob * torch.log(posterior_prob + 1e-5), dim=-1)  # torch.sum(torch.log(*)) is faster than torch.prod
+            
+        #     threshold = torch.minimum(
+        #         torch.ones_like(posterior_entropy) * alpha , 
+        #         torch.exp(-posterior_entropy) * epsilon,
+        #     )
+        #     posterior_mask = candidates_prob > threshold
+        #     candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)
 
-            # Choose the best candidate based on the evaluated posterior probabilities
-            accept_length = candidates_accept_length.max()
-            if accept_length == 0:
-                # If no candidates are accepted, just choose the first one
-                best_candidate = torch.tensor(0, dtype=torch.long, device=candidates.device)
-            else:
-                best_candidates = torch.where(candidates_accept_length == accept_length)[0]
-                # Accept the best one according to likelihood
-                likelihood = torch.sum(
-                    torch.log(candidates_prob[best_candidates, :accept_length]), dim=-1
-                )
-                best_candidate = best_candidates[torch.argmax(likelihood)]
-            return best_candidate, accept_length
+        #     # Choose the best candidate based on the evaluated posterior probabilities
+        #     accept_length = candidates_accept_length.max()
+        #     if accept_length == 0:
+        #         # If no candidates are accepted, just choose the first one
+        #         best_candidate = torch.tensor(0, dtype=torch.long, device=candidates.device)
+        #     else:
+        #         best_candidates = torch.where(candidates_accept_length == accept_length)[0]
+        #         # Accept the best one according to likelihood
+        #         likelihood = torch.sum(
+        #             torch.log(candidates_prob[best_candidates, :accept_length]), dim=-1
+        #         )
+        #         best_candidate = best_candidates[torch.argmax(likelihood)]
+        #     return best_candidate, accept_length
         # Calculate posterior probabilities and thresholds for candidate selection
         posterior_mask = get_eta_posterior_mask(logits, candidates, temperature, alpha,  epsilon)
         candidates_accept_length = (torch.cumprod(posterior_mask, dim=1)).sum(dim=1)

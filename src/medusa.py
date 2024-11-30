@@ -157,11 +157,11 @@ class MedusaLMHead(nn.Module):
             temperature: float = 1.0,
             max_new_tokens: int = 128,
             medusa_choices: List[Tuple[int, ...]] = None,
-            fast: bool = True,
             epsilon: float = 0.09,
             top_p: float = 0.8,
             sampling: str = 'eta'
     ) -> str:
+        print("Temperature", temperature)
         assert input_ids.shape[0] == 1, "Only support batch size 1 for now!!"
         # Avoid modifying the input_ids in-place
         input_ids = input_ids.clone()
@@ -212,7 +212,6 @@ class MedusaLMHead(nn.Module):
                 epsilon=epsilon,
                 top_p=top_p,
                 sampling=sampling,
-                fast=fast,
             )
             
             # print(tree_candidates)
@@ -229,9 +228,7 @@ class MedusaLMHead(nn.Module):
 
             # print(logits.shape)
             # Evaluate the posterior of the candidates to select the accepted candidate prefix
-            best_candidate, accept_length = evaluate_posterior(
-                logits, candidates, temperature, epsilon**0.5, epsilon, top_p=top_p, sampling=sampling, fast=fast
-            )
+            best_candidate, accept_length = evaluate_posterior(logits, candidates, temperature, epsilon**0.5, epsilon, top_p=top_p, sampling=sampling)
 
             # Update the input_ids and logits
             input_ids, logits, medusa_logits, new_token = update_inference_inputs(
@@ -247,15 +244,6 @@ class MedusaLMHead(nn.Module):
                 current_length_data,
             )
 
-            # yield {
-            #     "text": self.tokenizer.decode(
-            #         input_ids[0, input_len:],
-            #         skip_special_tokens=True,
-            #         spaces_between_special_tokens=False,
-            #         clean_up_tokenization_spaces=True,
-            #     )
-            # }
-
             if self.tokenizer.eos_token_id in input_ids[0, input_len:]:
                 break
         
@@ -267,7 +255,7 @@ class MedusaLMHead(nn.Module):
             )
         return output
 
-def generate_with_medusa(base_model_name, medusa_model_heads_name, device, prompt, max_new_tokens, medusa_choices, dtype=torch.bfloat16):
+def generate_with_medusa(base_model_name, medusa_model_heads_name, device, prompt, max_new_tokens, medusa_choices, dtype=torch.bfloat16, temperature=1.0):
     base_model = LlamaForCausalLM.from_pretrained(base_model_name, torch_dtype=dtype).to(device)
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     config = MedusaConfig.from_pretrained(medusa_model_heads_name)
@@ -287,7 +275,7 @@ def generate_with_medusa(base_model_name, medusa_model_heads_name, device, promp
     if medusa_choices is None:
         medusa_choices = vicuna_7b_medusa_choices
 
-    output = medusa_lm_model.generate(inp_ids, max_new_tokens=max_new_tokens, medusa_choices=medusa_choices)
+    output = medusa_lm_model.generate(inp_ids, max_new_tokens=max_new_tokens, medusa_choices=medusa_choices, temperature=temperature)
     return output
 
 if __name__ == "__main__":
