@@ -1,3 +1,4 @@
+# Taken from https://github.com/FasterDecoding/Medusa
 import torch
 import torch.nn.functional as F
 from transformers import PreTrainedModel

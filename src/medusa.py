@@ -1,3 +1,4 @@
+# Taken from https://github.com/FasterDecoding/Medusa
 import os
 import sys
 from typing import List, Optional, Tuple, Union
