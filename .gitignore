@@ -165,3 +165,4 @@ cython_debug/
 **/hf_token.py
 **/sample_prompt.txt
 **/generations.txt
+**/test_vicuna_medusa_vllm.py

@@ -1,11 +1,10 @@
-# Taken from https://github.com/1rgs/jsonformer
+# Adapted from https://github.com/1rgs/jsonformer
 
 import json
 from typing import Any, Dict
 
 import torch
-from transformers import (LogitsWarper, PreTrainedModel, PreTrainedTokenizer,
-                          StoppingCriteria)
+from transformers import (LogitsWarper, PreTrainedModel, PreTrainedTokenizer, StoppingCriteria)
 
 
 class StringStoppingCriteria(StoppingCriteria):
