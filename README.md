@@ -10,15 +10,15 @@ The LLM Sampling Library is a Python package designed to facilitate text generat
   - Unconstrained sampling
   - Top-k sampling
   - Top-p (nucleus) sampling 
-  - Min-p sampling
-  - Typical sampling
-  - Epsilon sampling
-  - Eta sampling
+  - [Min-p sampling](https://arxiv.org/abs/2407.01082)
+  - [Typical sampling](https://arxiv.org/abs/2202.00666)
+  - [Epsilon sampling](https://arxiv.org/abs/2210.15191)
+  - [Eta sampling](https://arxiv.org/abs/2210.15191)
   - Beam search
-  - Chain-of-Thought (CoT) decoding
+  - [Chain-of-Thought (CoT) decoding](https://arxiv.org/abs/2402.10200)
   - Constrained JSON decoding
-  - Speculative sampling
-  - Medusa decoding
+  - [Speculative sampling](https://arxiv.org/abs/2302.01318)
+  - [Medusa decoding](https://arxiv.org/abs/2401.10774)
 
 - **Easy Integration**: Load models from Hugging Face with minimal setup
 - **Customizable Parameters**: Adjust parameters like temperature, top-k, top-p, min-p, etc. to fine-tune output
