@@ -93,4 +93,4 @@ python generate.py --model meta-llama/Llama-3.1-8B-Instruct --prompt "Write code
 - [Medusa](https://github.com/FasterDecoding/Medusa) for the Medusa decoding implementation
 - [vLLM](https://github.com/vllm-project/vllm) used as the reference for the Medusa heads architecture
 - [Jsonformer](https://github.com/1rgs/jsonformer) for the constrained JSON decoding implementation
-- [HuggingFace Transformers](https://github.com/huggingface/transformers) for checking against their implementation of sampling methods
+- [HuggingFace Transformers](https://github.com/huggingface/transformers) for correctness evaluation
