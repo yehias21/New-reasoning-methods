@@ -20,11 +20,8 @@ The LLM Sampling Library is a Python package designed to facilitate text generat
   - [Speculative sampling](https://arxiv.org/abs/2302.01318)
   - [Medusa decoding](https://arxiv.org/abs/2401.10774)
 
-- **Easy Integration**: Load models from Hugging Face with minimal setup
-- **Customizable Parameters**: Adjust parameters like temperature, top-k, top-p, min-p, etc. to fine-tune output
-- **Chat Template Support**: Optionally apply chat templates to prompts for enhanced interaction
-- **Memory Efficient**: Uses optimized KV-cache mechanism for better memory usage
-- **Multiple Precision Support**: Supports bfloat16, float16 and float32 datatypes
+- **Chat Template Support**: Optionally apply chat templates for Instruct models
+- **Memory Efficient**: Uses KV-cache for better memory usage
 
 In all implementations, temperature scaling is applied to the logits before any sampling methods, following the [GPT-2 implementation](https://github.com/openai/gpt-2/blob/9b63575ef42771a015060c964af2c3da4cf7c8ab/src/sample.py#L61C5-L72C14) and [HuggingFace's implementation](https://github.com/huggingface/transformers/blob/acc394c4f5e1283c19783581790b3dc3105a3697/src/transformers/generation/utils.py#L825C9-L847C23).
 
