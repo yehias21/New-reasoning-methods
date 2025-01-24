@@ -19,6 +19,8 @@ The LLM Sampling Library is a Python package designed to facilitate text generat
   - Constrained JSON decoding
   - [Speculative sampling](https://arxiv.org/abs/2302.01318)
   - [Medusa decoding](https://arxiv.org/abs/2401.10774)
+  - [Chain-of-Thought Reasoning without Prompting](https://arxiv.org/pdf/2402.10200)
+  - [entropix](https://github.com/xjdr-alt/entropix)
 
 - **Chat Template Support**: Optionally apply chat templates for Instruct models
 - **Memory Efficient**: Uses KV-cache for better memory usage
